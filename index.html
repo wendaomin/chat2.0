@@ -4,11 +4,17 @@
     <title>Socket.IO chat</title>
     <link rel="stylesheet" href="/index.css">
     <script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script>
+    <style>
+      a{
+        color: aliceblue;
+      }
+    </style>
   </head>
   <body>
     <ul id="messages"></ul>
     <form action="">
         <input type="file" id="uploadfile" multiple='multiple'>
+        <a href="#">私发</a>
       <input id="m" autocomplete="off" /><button>发送</button>
     </form>
   </body>
@@ -16,16 +22,21 @@
   <script>
     var userObj = null;
     var name   = prompt("请输入你的昵称：");
-    //默认连接本机服务器
+    //连接本机服务器 
     var socket = io('localhost:3000')
     
     //发送昵称给后端，并更改网页title
     socket.emit("join", name)
     document.title = name + "的群聊"
 
-    socket.on("join", function (user) {
-      socket.name = user
-      addLine(user + '加入了群聊')
+    socket.on("join", function (msg) {
+      socket.name = msg.name;
+      addLine(msg.name + '加入了群聊');
+      displayOnlineUser(msg);
+      // console.log(user);
+      // for (var x in user.usocket) {
+      //   console.log(user.usocket[x]);
+      // }
     })
 
     //接收到服务器发来的message事件
@@ -33,10 +44,26 @@
       addLine(msg)
     })
     socket.on('disconnect', function(msg){
-      addLine(msg + '退出了群聊');
+      addLine(msg.name + '退出了群聊');
+      displayOnlineUser(msg);
     })
     socket.on('base64 file', function(msg){
       addLine(msg)
+    })
+    //私聊
+    socket.on('private', function(msg){
+      privateAddLine(msg);
+      console.log(msg.msg + '私聊成功');
+    })
+    $('a').on('click', function(){
+      var msg = $("#m").val();//获取用户输入信息
+      var toName = prompt('请输入私聊人的用户名')
+      var privateData = {
+        myName: socket.name,
+        toName: toName,
+        msg: msg
+      };
+      socket.emit('sayTo', privateData)
     })
     //当发送按钮被点击时
     $('form').submit(function () {
@@ -62,11 +89,18 @@
       }else if(msg.file && !msg.type){
         console.log(msg.type);
         console.log(msg);
-        
         $('#messages').append($('<li>').text(msg.username+':'+ msg.fileName + '文件上传中').append($('<iframe>').attr({src: msg.file, hidden:'hidden'})));
-      }else{
-        $('#messages').append($('<li>').text(msg));
+      }else{ 
+        return $('#messages').append($('<li>').text(msg));
       }
+    }
+    //私聊添加框
+    function privateAddLine(msg){
+      $('#messages').append($('li')).text(msg.myName +'的私信:'+msg.msg)
+    }
+//显示在线用户
+    function displayOnlineUser(msg){
+        $('#messages').append($('<li>').text(msg.allUser.join()+'在线'));
     }
     function readThenSendFile(data){
       var reader = new FileReader();
@@ -80,6 +114,8 @@
             msg.type = false;
           }
           msg.username = socket.name;
+          console.log(socket.name);
+          
           msg.file = evt.target.result;
           msg.fileName = data.name; 
           socket.emit('base64 file', msg);
